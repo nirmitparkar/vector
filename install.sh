@@ -15,7 +15,7 @@ hr
 echo ""
 
 # Ask for PAT (needed to download .deb from private repo)
-read -rsp "  Enter GitHub PAT: " GH_PAT
+read -rsp "  Enter GitHub PAT: " GH_PAT </dev/tty
 echo ""
 [[ -n "$GH_PAT" ]] || die "PAT cannot be empty."
 
