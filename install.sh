@@ -1,12 +1,20 @@
 #!/bin/bash
 
 echo ""
-echo -n "Enter GitHub PAT: "
-read -rs GH_PAT </dev/tty
-echo ""
 
-if [ -z "$GH_PAT" ]; then
-  echo "ERROR: PAT cannot be empty."
+# Accept PAT from env var or prompt interactively
+if [ -z "${GH_PAT:-}" ]; then
+  echo -n "Enter GitHub PAT: "
+  if [ -t 0 ]; then
+    read -rs GH_PAT
+  elif [ -c /dev/tty ]; then
+    read -rs GH_PAT </dev/tty
+  fi
+  echo ""
+fi
+
+if [ -z "${GH_PAT:-}" ]; then
+  echo "ERROR: PAT required. Run: GH_PAT=your_token bash /tmp/install.sh"
   exit 1
 fi
 
