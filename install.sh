@@ -5,11 +5,25 @@ echo -n "Enter GitHub PAT: "
 read -rs GH_PAT
 echo ""
 
-# Download
-ASSET_ID=$(curl -sf -H "Authorization: token $GH_PAT" \
-  https://api.github.com/repos/VectorParkarDevOrg/vector-app-release/releases/latest \
-  | grep -o '"id": [0-9]*' | sed -n '2p' | grep -o '[0-9]*')
+# Get release info
+RELEASE=$(curl -sf -H "Authorization: token $GH_PAT" \
+  https://api.github.com/repos/VectorParkarDevOrg/vector-app-release/releases/latest)
 
+ASSET_ID=$(echo "$RELEASE" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for a in data.get('assets', []):
+    if a['name'].endswith('.deb'):
+        print(a['id'])
+        break
+")
+
+if [ -z "$ASSET_ID" ]; then
+  echo "ERROR: Could not get release. Check PAT."
+  exit 1
+fi
+
+echo "Downloading..."
 curl -fsSL \
   -H "Authorization: token $GH_PAT" \
   -H "Accept: application/octet-stream" \
