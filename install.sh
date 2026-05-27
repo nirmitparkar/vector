@@ -2,38 +2,59 @@
 
 echo ""
 echo -n "Enter GitHub PAT: "
-read -rs GH_PAT
+read -rs GH_PAT </dev/tty
 echo ""
 
-# Get release info
-RELEASE=$(curl -sf -H "Authorization: token $GH_PAT" \
-  https://api.github.com/repos/VectorParkarDevOrg/vector-app-release/releases/latest)
-
-ASSET_ID=$(echo "$RELEASE" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-for a in data.get('assets', []):
-    if a['name'].endswith('.deb'):
-        print(a['id'])
-        break
-")
-
-if [ -z "$ASSET_ID" ]; then
-  echo "ERROR: Could not get release. Check PAT."
+if [ -z "$GH_PAT" ]; then
+  echo "ERROR: PAT cannot be empty."
   exit 1
 fi
 
-echo "Downloading..."
+# Validate PAT and get asset ID
+echo "Validating token..."
+RESPONSE=$(curl -sf \
+  -H "Authorization: token $GH_PAT" \
+  https://api.github.com/repos/VectorParkarDevOrg/vector-app-release/releases/latest 2>&1)
+
+if [ -z "$RESPONSE" ]; then
+  echo "ERROR: Invalid PAT or no access to repo. Make sure your token has 'repo' scope."
+  exit 1
+fi
+
+ASSET_ID=$(echo "$RESPONSE" | python3 -c "
+import sys, json
+try:
+  data = json.load(sys.stdin)
+  for a in data.get('assets', []):
+    if a['name'].endswith('.deb'):
+      print(a['id'])
+      break
+except:
+  pass
+")
+
+if [ -z "$ASSET_ID" ]; then
+  echo "ERROR: Could not find .deb in release. Check PAT permissions."
+  exit 1
+fi
+
+echo "Downloading package..."
 curl -fsSL \
   -H "Authorization: token $GH_PAT" \
   -H "Accept: application/octet-stream" \
   -o /tmp/vector-app.deb \
   "https://api.github.com/repos/VectorParkarDevOrg/vector-app-release/releases/assets/${ASSET_ID}"
 
-# Add PostgreSQL repo if needed
+if [ "$(wc -c < /tmp/vector-app.deb)" -lt 10000 ]; then
+  echo "ERROR: Download failed — file too small. Check PAT has 'repo' scope."
+  exit 1
+fi
+
+echo "Setting up repositories..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq gnupg lsb-release ca-certificates
+
 if ! apt-cache show postgresql-16 &>/dev/null; then
   curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
     | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg
@@ -42,11 +63,10 @@ if ! apt-cache show postgresql-16 &>/dev/null; then
   apt-get update -qq
 fi
 
-# Install
+echo "Installing..."
 apt-get install -y /tmp/vector-app.deb
 rm -f /tmp/vector-app.deb
 
-# Result
 echo ""
 echo "================================"
 echo " URL      : http://$(hostname -I | awk '{print $1}'):8090"
