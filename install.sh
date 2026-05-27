@@ -15,9 +15,13 @@ hr
 echo ""
 
 # Ask for PAT (needed to download .deb from private repo)
-read -rsp "  Enter GitHub PAT: " GH_PAT </dev/tty
+if [ -t 0 ]; then
+  read -rsp "  Enter GitHub PAT: " GH_PAT
+else
+  read -rsp "  Enter GitHub PAT: " GH_PAT </dev/tty
+fi
 echo ""
-[[ -n "$GH_PAT" ]] || die "PAT cannot be empty."
+[[ -n "${GH_PAT:-}" ]] || die "PAT cannot be empty."
 
 # Get latest release
 echo "  Fetching latest release..."
